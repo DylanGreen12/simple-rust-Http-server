@@ -61,19 +61,23 @@ fn get_pages_directory() -> PathBuf {
 
 fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     let buf_reader = BufReader::new(&mut stream);
-    let mut request_lines = buf_reader.lines();
+    let http_request: Vec<_> = buf_reader
+        .lines()
+        .map(|result| result.unwrap())
+        .take_while(|line| !line.is_empty())
+        .collect();
     
-    // Parse the request line
-    let request_line = match request_lines.next() {
-        Some(Ok(line)) => line,
-        _ => {
-            send_error_response(&mut stream, "400 Bad Request", "Bad Request", pages_dir, false);
-            return;
-        }
-    };
+    // Print the request to terminal
+    println!("=== HTTP Request Received ===");
+    for line in &http_request {
+        println!("{}", line);
+    }
+    println!("=============================");
     
-    // Parse the request
+    // Parse the request line (first line)
+    let request_line = http_request.first().unwrap();
     let parts: Vec<&str> = request_line.split_whitespace().collect();
+    
     if parts.len() < 2 {
         send_error_response(&mut stream, "400 Bad Request", "Bad Request", pages_dir, false);
         return;
@@ -95,6 +99,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     
     // Security: Prevent directory traversal attacks
     if path.contains("..") {
+        println!("Blocked directory traversal attempt: {}", path);
         send_error_response(&mut stream, "403 Forbidden", "Directory traversal not allowed", pages_dir, true);
         return;
     }
@@ -105,6 +110,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     
     // Check if file exists
     if !full_path.exists() {
+        println!("File not found: {}", filename);
         send_error_response(&mut stream, "404 Not Found", "File Not Found", pages_dir, true);
         return;
     }
@@ -119,19 +125,14 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
         }
     };
     
-    // Check for Connection: keep-alive header (HTTP 1.1 persistent connections)
+    // Check for Connection: keep-alive header
     let mut connection_header = "close"; // Default to close
-    for line in request_lines {
-        if let Ok(header_line) = line {
-            if header_line.to_lowercase().starts_with("connection:") {
-                if header_line.to_lowercase().contains("keep-alive") {
-                    connection_header = "keep-alive";
-                }
-                break;
+    for line in &http_request {
+        if line.to_lowercase().starts_with("connection:") {
+            if line.to_lowercase().contains("keep-alive") {
+                connection_header = "keep-alive";
             }
-            if header_line.is_empty() {
-                break; // End of headers
-            }
+            break;
         }
     }
     
@@ -144,6 +145,16 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
         "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: {}\r\n\r\n{}",
         content_type, length, connection_header, contents
     );
+    
+    // Print response headers to terminal (without body)
+    println!("=== HTTP Response Sent ===");
+    let response_lines: Vec<&str> = response.split("\r\n").collect();
+    for line in &response_lines[..response_lines.len().saturating_sub(1)] {
+        if !line.is_empty() {
+            println!("{}", line);
+        }
+    }
+    println!("===========================");
     
     // Send response
     if let Err(e) = stream.write_all(response.as_bytes()) {
@@ -179,6 +190,16 @@ fn send_error_response(stream: &mut TcpStream, status: &str, message: &str, page
         content.len(),
         content
     );
+    
+    // Print error response to terminal
+    println!("=== HTTP Error Response ===");
+    let response_lines: Vec<&str> = response.split("\r\n").collect();
+    for line in &response_lines[..response_lines.len().saturating_sub(1)] {
+        if !line.is_empty() {
+            println!("{}", line);
+        }
+    }
+    println!("===========================");
     
     if let Err(e) = stream.write_all(response.as_bytes()) {
         eprintln!("Failed to send error response: {}", e);
