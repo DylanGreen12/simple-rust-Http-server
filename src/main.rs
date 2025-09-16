@@ -15,6 +15,13 @@ fn main() {
     let root_dir = get_root_directory();
     println!("Serving files from: {:?}", root_dir);
     
+    // Verify the pages directory exists
+    if !root_dir.exists() {
+        eprintln!("ERROR: Pages directory does not exist: {:?}", root_dir);
+        eprintln!("Please make sure the 'pages' folder is in the same directory as the executable");
+        return;
+    }
+    
     // Try to bind to the address, with error handling
     let listener = match TcpListener::bind(server_address) {
         Ok(listener) => listener,
@@ -51,19 +58,27 @@ fn get_root_directory() -> PathBuf {
         return PathBuf::from(&args[1]);
     }
     
-    // Use the pages folder in the project root
-    if let Ok(project_root) = env::current_dir() {
-        let pages_dir = project_root.join("pages");
-        if pages_dir.exists() {
-            return pages_dir;
+    // First, try to find the pages directory next to the executable
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let pages_dir = exe_dir.join("pages");
+            if pages_dir.exists() {
+                return pages_dir;
+            }
+            
+            // If no pages directory, check if we're running from a development environment
+            let project_pages = exe_dir.parent().unwrap().parent().unwrap().join("pages");
+            if project_pages.exists() {
+                return project_pages;
+            }
+            
+            // Fallback: use the executable directory itself
+            return exe_dir.to_path_buf();
         }
-        
-        // Fallback: use the project root itself
-        return project_root;
     }
     
     // Final fallback: current directory
-    PathBuf::from(".")
+    env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
 fn handle_connection(mut stream: TcpStream, root_dir: &Path) {
