@@ -60,6 +60,7 @@ fn get_pages_directory() -> PathBuf {
     env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("pages")
 }
 
+// Process connections, handle requests, serve files
 fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Vec<_> = buf_reader
@@ -98,7 +99,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
         path = "/index.html";
     }
     
-    // Security: Prevent directory traversal attacks
+    // Security: Prevent directory traversal attacks, 403
     if path.contains("..") {
         println!("Blocked directory traversal attempt: {}", path);
         send_error_response(&mut stream, "403 Forbidden", "Directory traversal not allowed", pages_dir, true);
@@ -106,7 +107,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     }
     
     // Remove leading slash and build full path
-    let filename = &path[1..]; // Remove the leading '/'
+    let filename = &path[1..]; 
     let full_path = pages_dir.join(filename);
     
     // Check if file exists
@@ -127,7 +128,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     };
     
     // Check for Connection: keep-alive header
-    let mut connection_header = "close"; // Default to close
+    let mut connection_header = "close"; 
     for line in &http_request {
         if line.to_lowercase().starts_with("connection:") {
             if line.to_lowercase().contains("keep-alive") {
@@ -207,6 +208,7 @@ fn send_error_response(stream: &mut TcpStream, status: &str, message: &str, page
     }
 }
 
+// Handle more MIME types
 fn get_content_type(filename: &str) -> &str {
     if filename.ends_with(".html") {
         "text/html"
