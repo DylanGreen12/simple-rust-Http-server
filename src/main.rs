@@ -39,6 +39,7 @@ fn main() {
     }
 }
 
+// Fix exe file pathing
 fn get_pages_directory() -> PathBuf {
     // First, try to find the pages directory next to the executable
     if let Ok(exe_path) = env::current_exe() {
