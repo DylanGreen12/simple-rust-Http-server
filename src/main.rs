@@ -127,7 +127,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
         }
     };
     
-    // Check for Connection: keep-alive header
+    // Check for Connection: keep-alive header for Http 1.1
     let mut connection_header = "close"; 
     for line in &http_request {
         if line.to_lowercase().starts_with("connection:") {
