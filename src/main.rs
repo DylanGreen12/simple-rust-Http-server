@@ -164,6 +164,7 @@ fn handle_connection(mut stream: TcpStream, pages_dir: &Path) {
     }
 }
 
+// Handle errors 
 fn send_error_response(stream: &mut TcpStream, status: &str, message: &str, pages_dir: &Path, try_html: bool) {
     let (content, content_type) = if try_html {
         // Check if there's a custom error page for this status code
